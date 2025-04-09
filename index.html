@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binary Visualizer</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 1rem;
+      background: #f9f9f9;
+      color: #333;
+      margin: 0;
+      line-height: 1.5;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #2d2d2d;
+      margin-bottom: 1.5rem;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      margin: 0;
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background-color: #fff;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .controls label {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    .controls select, .controls input {
+      margin-top: 0.25rem;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    button {
+      background: #4a6fa5;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #3a5a8c;
+    }
+
+    #bitStats {
+      margin: 1rem 0;
+      font-weight: 500;
+    }
+
+    #preview {
+      margin: 1.5rem 0;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .grid-item {
+      background: white;
+      padding: 1rem;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .grid-item h4 {
+      margin: 0 0 0.5rem 0;
+      color: #4a6fa5;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toggle-label {
+      font-weight: 500;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .grid-container {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Binary Visualizer</h1>
+  <div class="controls">
+    <label>
+      Input Type
+      <select id="inputType">
+        <option value="base64">Base64</option>
+        <option value="hex">Hex</option>
+      </select>
+    </label>
+    <label>
+      Width
+      <input type="number" id="width" value="0" />
+    </label>
+    <label>
+      Bit Offset
+      <input type="number" id="bitOffset" value="0" />
+    </label>
+    <label>
+      Foreground
+      <input type="color" id="fgColor" value="#222222" />
+    </label>
+    <label>
+      Background
+      <input type="color" id="bgColor" value="#fdfdfd" />
+    </label>
+  </div>
+  <textarea id="input" rows="4" cols="80" placeholder="Paste your input string here"></textarea>
+  <div id="bitStats"></div>
+
+  <div class="toggle-container">
+    <button id="toggleGrids">Show All Factor Grids</button>
+    <span class="toggle-label" id="gridStatus"></span>
+  </div>
+
+  <div id="preview"></div>
+  <div id="allGrids" style="display: none;" class="grid-container"></div>
+
+  <script>
+    const inputEl = document.getElementById('input');
+    const widthEl = document.getElementById('width');
+    const bitOffsetEl = document.getElementById('bitOffset');
+    const inputTypeEl = document.getElementById('inputType');
+    const fgColorEl = document.getElementById('fgColor');
+    const bgColorEl = document.getElementById('bgColor');
+    const preview = document.getElementById('preview');
+    const allGrids = document.getElementById('allGrids');
+    const bitStats = document.getElementById('bitStats');
+    const toggleBtn = document.getElementById('toggleGrids');
+    const gridStatus = document.getElementById('gridStatus');
+    let showAll = false;
+
+    inputEl.addEventListener('input', render);
+    widthEl.addEventListener('input', render);
+    bitOffsetEl.addEventListener('input', render);
+    inputTypeEl.addEventListener('change', render);
+    fgColorEl.addEventListener('input', render);
+    bgColorEl.addEventListener('input', render);
+
+    toggleBtn.addEventListener('click', () => {
+      showAll = !showAll;
+      allGrids.style.display = showAll ? 'grid' : 'none';
+      toggleBtn.textContent = showAll ? 'Hide Factor Grids' : 'Show All Factor Grids';
+      gridStatus.textContent = showAll ? `Showing ${document.querySelectorAll('.grid-item').length} grids` : '';
+      render();
+    });
+
+    function render() {
+      preview.innerHTML = '';
+      allGrids.innerHTML = '';
+
+      const bits = getBits().slice(Number(bitOffsetEl.value));
+      const bitCount = bits.length;
+      bitStats.textContent = `Bit count: ${bitCount}`;
+      const w = Number(widthEl.value);
+
+      if (w > 0) {
+        const h = Math.floor(bits.length / w);
+        const previewContainer = document.createElement('div');
+        previewContainer.classList.add('grid-item');
+
+        const title = document.createElement('h4');
+        title.textContent = `Preview: ${w} x ${h}`;
+
+        const canvas = drawBits(bits.slice(0, w * h), w);
+
+        previewContainer.appendChild(title);
+        previewContainer.appendChild(canvas);
+        preview.appendChild(previewContainer);
+      }
+
+      if (showAll) {
+        const factors = getFactors(bits.length);
+
+        // Update grid count status
+        gridStatus.textContent = `Showing ${factors.length} grids`;
+
+        // Sort factors by aspect ratio to create a more visually balanced layout
+        factors.sort((a, b) => {
+          const aspectA = a / Math.floor(bits.length / a);
+          const aspectB = b / Math.floor(bits.length / b);
+          return Math.abs(aspectA - 1) - Math.abs(aspectB - 1);
+        });
+
+        for (const w of factors) {
+          const h = Math.floor(bits.length / w);
+          if (w < 5 || h < 5) continue; // Skip very small grids
+
+          const gridItem = document.createElement('div');
+          gridItem.classList.add('grid-item');
+
+          const title = document.createElement('h4');
+          title.textContent = `${w} x ${h}`;
+
+          const canvas = drawBits(bits.slice(0, w * h), w);
+
+          gridItem.appendChild(title);
+          gridItem.appendChild(canvas);
+          allGrids.appendChild(gridItem);
+        }
+      }
+    }
+
+    function getBits() {
+      try {
+        const input = inputEl.value.trim();
+        if (!input) return [];
+
+        let bytes;
+        if (inputTypeEl.value === 'base64') {
+          bytes = Uint8Array.from(atob(input), c => c.charCodeAt(0));
+        } else {
+          const cleaned = input.replace(/[^a-fA-F0-9]/g, '');
+          bytes = new Uint8Array(cleaned.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) || []);
+        }
+
+        const bits = [];
+        for (let byte of bytes) {
+          for (let i = 7; i >= 0; i--) {
+            bits.push((byte >> i) & 1);
+          }
+        }
+        return bits;
+      } catch (e) {
+        console.error("Error processing input:", e);
+        return [];
+      }
+    }
+
+    function getFactors(n) {
+      if (n <= 0) return [];
+
+      const f = [];
+      const limit = Math.min(500, Math.floor(Math.sqrt(n))); // Limit factor search to avoid performance issues
+
+      for (let i = 5; i <= limit; i++) {
+        if (n % i === 0) {
+          f.push(i);
+          if (i !== n / i) {
+            f.push(n / i);
+          }
+        }
+      }
+
+      // Sort factors for better display
+      f.sort((a, b) => a - b);
+
+      return f;
+    }
+
+    function drawBits(bits, w) {
+      const h = Math.floor(bits.length / w);
+      const scale = Math.min(5, Math.max(1, Math.floor(200 / Math.max(w, h)))); // Adjust scale based on dimensions
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = bgColorEl.value;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (bits[y * w + x] === 1) {
+            ctx.fillStyle = fgColorEl.value;
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+          }
+        }
+      }
+      return canvas;
+    }
+
+    // Initialize
+    render();
+  </script>
+</body>
+</html>
