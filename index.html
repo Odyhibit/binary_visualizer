@@ -142,6 +142,7 @@
       <select id="inputType">
         <option value="base64">Base64</option>
         <option value="hex">Hex</option>
+        <option value="binary">Binary</option>
       </select>
     </label>
     <label>
@@ -265,9 +266,14 @@
         let bytes;
         if (inputTypeEl.value === 'base64') {
           bytes = Uint8Array.from(atob(input), c => c.charCodeAt(0));
-        } else {
+        }
+        else if (inputTypeEl.value === 'hex') {
           const cleaned = input.replace(/[^a-fA-F0-9]/g, '');
           bytes = new Uint8Array(cleaned.match(/.{1,2}/g)?.map(h => parseInt(h, 16)) || []);
+        }
+        else if (inputTypeEl.value === 'binary') {
+          const cleaned = input.replace(/[^01]/g, '');
+          bytes = new Uint8Array(cleaned.match(/.{1,8}/g)?.map(b => parseInt(b, 2)) || []);
         }
 
         const bits = [];
